@@ -1,11 +1,15 @@
 from fastapi import FastAPI, UploadFile, File
-import pandas as pd
 from sklearn.ensemble import IsolationForest
+from services.risk_services import calculate_provider_risk
+import pandas as pd
 
 app = FastAPI(
     title="AI-Powered Provider Billing Integrity Platform",
     version="1.0.0"
 )
+
+claims_df = None
+
 
 @app.get("/")
 def home():
@@ -13,8 +17,11 @@ def home():
         "message": "Provider Billing Integrity Platform Running"
     }
 
+
 @app.post("/upload-claims")
 async def upload_claims(file: UploadFile = File(...)):
+
+    global claims_df
 
     df = pd.read_csv(file.file)
 
@@ -27,6 +34,8 @@ async def upload_claims(file: UploadFile = File(...)):
         df[["billed_amount"]]
     )
 
+    claims_df = df
+
     anomalies = df[df["anomaly"] == -1]
 
     return {
@@ -37,3 +46,16 @@ async def upload_claims(file: UploadFile = File(...)):
             ["claim_id", "provider_id", "billed_amount"]
         ].to_dict(orient="records")
     }
+
+
+@app.get("/provider-risk")
+def provider_risk():
+
+    global claims_df
+
+    if claims_df is None:
+        return {
+            "message": "Upload claims first"
+        }
+
+    return calculate_provider_risk(claims_df)
